@@ -1,3 +1,4 @@
+from base64 import b64decode
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -7,6 +8,7 @@ from nonebot.message import event_preprocessor
 from nonebot_plugin_userinfo import UserInfo, get_user_info
 
 from .config import config
+from .util import use_redis_client
 
 nonebot_run_time: datetime = datetime.now().astimezone()
 bot_connect_time: Dict[str, datetime] = {}
@@ -14,7 +16,6 @@ recv_num: Dict[str, int] = {}
 send_num: Dict[str, int] = {}
 
 bot_info_cache: Dict[str, UserInfo] = {}
-bot_avatar_cache: Dict[str, bytes] = {}
 
 driver = get_driver()
 
@@ -106,6 +107,19 @@ async def cache_bot_info(bot: BaseBot, event: BaseEvent):
     else:
         if info:
             bot_info_cache[bot.self_id] = info
+            async with use_redis_client() as client:
+                avatar_exist = await client.hexists(f'picstatus_avatar:{config.port}', bot.self_id)
+                if not avatar_exist:
+                    try:
+                        avatar_bytes = await info.user_avatar.get_image()
+                    except Exception as e:
+                        logger.warning(
+                            f"Error when getting bot avatar, fallback to default: "
+                            f"{e.__class__.__name__}: {e}",
+                        )
+                    else:
+                        await client.hset(f'picstatus_avatar:{config.port}', 
+                                          bot.self_id, b64decode(avatar_bytes))
 
 
 @event_preprocessor

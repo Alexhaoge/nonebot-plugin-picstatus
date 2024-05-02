@@ -1,5 +1,6 @@
 import mimetypes
 import re
+from base64 import b64decode, b64encode
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -17,8 +18,8 @@ from yarl import URL
 
 from ..bg_provider import get_bg
 from ..config import DEFAULT_AVATAR_PATH, config
-from ..statistics import bot_avatar_cache, bot_info_cache
-from ..util import format_cpu_freq
+from ..statistics import bot_info_cache
+from ..util import format_cpu_freq, use_redis_client
 
 PatternType = Union[re.Pattern, str]
 RouterType = Callable[[Route, Request], Any]
@@ -162,22 +163,24 @@ async def _(route: Route, request: Request):
     url = URL(request.url)
     self_id = url.parts[-1]
 
-    if self_id in bot_avatar_cache:
-        await route.fulfill(body=bot_avatar_cache[self_id])
-        return
-
-    if (self_id in bot_info_cache) and (avatar := bot_info_cache[self_id].user_avatar):
-        try:
-            img = await avatar.get_image()
-        except Exception as e:
-            logger.warning(
-                f"Error when getting bot avatar, fallback to default: "
-                f"{e.__class__.__name__}: {e}",
-            )
-        else:
-            bot_avatar_cache[self_id] = img
-            await route.fulfill(body=img)
+    async with use_redis_client() as client:
+        avatar_exist = await client.hexists(f'picstatus_avatar:{config.port}', self_id)
+        if avatar_exist:
+            avatar_b64 = await client.hget(f'picstatus_avatar:{config.port}', self_id)
+            await route.fulfill(body=b64decode(avatar_b64))
             return
+        elif (self_id in bot_info_cache) and (avatar := bot_info_cache[self_id].user_avatar):
+            try:
+                avatar_bytes = await avatar.get_image()
+            except Exception as e:
+                logger.warning(
+                    f"Error when getting bot avatar, fallback to default: "
+                    f"{e.__class__.__name__}: {e}",
+                )
+            else:
+                await client.hset(f'picstatus_avatar:{config.port}', self_id, b64decode(avatar_bytes))
+                await route.fulfill(body=avatar_bytes)
+                return
 
     data = (
         config.ps_default_avatar
