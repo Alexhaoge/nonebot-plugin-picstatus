@@ -201,7 +201,12 @@ async def _():
     await asyncio.gather(
         *(
             x.collect()
-            for x in enabled_collectors.values()
-            if isinstance(x, BasePeriodicCollector)
+            for k, x in enabled_collectors.items()
+            if isinstance(x, BasePeriodicCollector) and k != 'bots_redis'
         ),
     )
+
+@scheduler.scheduled_job("interval", seconds=30)
+async def __():
+    if 'bots_redis' in enable_collectors:
+        await enabled_collectors['bots_redis'].collect()

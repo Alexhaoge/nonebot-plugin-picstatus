@@ -28,6 +28,8 @@ class ConfigModel(BaseModel):
 
     # region global
     proxy: Optional[str] = None
+    redis_url: str = 'redis://localhost'
+    port: int = 16000
     # endregion
 
     # region behavior
