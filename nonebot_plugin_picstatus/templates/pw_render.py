@@ -161,15 +161,15 @@ async def _(route: Route, _: Request):
 @router(f"{ROUTE_URL}/api/bot_avatar/*")
 async def _(route: Route, request: Request):
     url = URL(request.url)
-    self_id = url.parts[-1]
+    port, self_id = url.parts[-2], url.parts[-1]
 
     async with use_redis_client() as client:
-        avatar_exist = await client.hexists(f'picstatus_avatar:{config.port}', self_id)
+        avatar_exist = await client.hexists(f'picstatus_avatar:{port}', self_id)
         if avatar_exist:
-            avatar_b64 = await client.hget(f'picstatus_avatar:{config.port}', self_id)
+            avatar_b64 = await client.hget(f'picstatus_avatar:{port}', self_id)
             await route.fulfill(body=b64decode(avatar_b64))
             return
-        elif (self_id in bot_info_cache) and (avatar := bot_info_cache[self_id].user_avatar):
+        elif (port==config.port) and (self_id in bot_info_cache) and (avatar := bot_info_cache[self_id].user_avatar):
             try:
                 avatar_bytes = await avatar.get_image()
             except Exception as e:
@@ -178,7 +178,7 @@ async def _(route: Route, request: Request):
                     f"{e.__class__.__name__}: {e}",
                 )
             else:
-                await client.hset(f'picstatus_avatar:{config.port}', self_id, b64decode(avatar_bytes))
+                await client.hset(f'picstatus_avatar:{port}', self_id, b64encode(avatar_bytes).decode())
                 await route.fulfill(body=avatar_bytes)
                 return
 

@@ -26,7 +26,7 @@
     </div>
     {% for info in bots_status %}
     <div class="account">
-      <img class="avatar" data-src="/api/bot_avatar/{{ info.self_id }}" />
+      <img class="avatar" data-src="/api/bot_avatar/{{ port }}/{{ info.self_id }}" />
       <div class="description">
         <div class="nickname">{{ info.nick }}</div>
         <div class="status label-container">

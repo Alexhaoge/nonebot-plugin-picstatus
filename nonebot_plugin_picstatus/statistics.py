@@ -1,4 +1,4 @@
-from base64 import b64decode
+from base64 import b64encode
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -108,18 +108,16 @@ async def cache_bot_info(bot: BaseBot, event: BaseEvent):
         if info:
             bot_info_cache[bot.self_id] = info
             async with use_redis_client() as client:
-                avatar_exist = await client.hexists(f'picstatus_avatar:{config.port}', bot.self_id)
-                if not avatar_exist:
-                    try:
-                        avatar_bytes = await info.user_avatar.get_image()
-                    except Exception as e:
-                        logger.warning(
-                            f"Error when getting bot avatar, fallback to default: "
-                            f"{e.__class__.__name__}: {e}",
-                        )
-                    else:
-                        await client.hset(f'picstatus_avatar:{config.port}', 
-                                          bot.self_id, b64decode(avatar_bytes))
+                try:
+                    avatar_bytes = await info.user_avatar.get_image()
+                except Exception as e:
+                    logger.warning(
+                        f"Error when getting bot avatar, fallback to default: "
+                        f"{e.__class__.__name__}: {e}",
+                    )
+                else:
+                    await client.hset(f'picstatus_avatar:{config.port}', 
+                                        bot.self_id, b64encode(avatar_bytes).decode())
 
 
 @event_preprocessor
