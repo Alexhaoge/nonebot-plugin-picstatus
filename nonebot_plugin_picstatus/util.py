@@ -1,5 +1,5 @@
 import re
-import redis
+import redis.asyncio as redis
 from functools import partial
 from typing import TYPE_CHECKING, List, Optional
 import contextvars

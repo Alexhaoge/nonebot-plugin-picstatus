@@ -8,6 +8,8 @@ from nonebot import get_bots, logger
 from nonebot.adapters import Bot as BaseBot
 from nonebot.matcher import current_bot
 
+from nonebot_plugin_apscheduler import scheduler
+
 from ..config import config
 from ..statistics import (
     bot_connect_time,
@@ -113,18 +115,17 @@ async def cache_bot_status(bot: BaseBot, now_time: datetime) -> BotStatus:
         'msg_sent': msg_sent,
     }
 
-if not config.ps_show_current_bot_only:
-    @periodic_collector('bots_redis')
-    async def cache_bot_to_redis():
-        now_time = datetime.now().astimezone()
-        bots_status = await asyncio.gather(
-            *(get_bot_status(bot, now_time) for bot in get_bots().values()),
-        )
-        async with use_redis_client() as client:
-            await client.delete(f'picstatus_bot:{config.port}')
-            await client.lpush(f'picstatus_bot:{config.port}', 
-                               *[json.dumps(b) for b in bots_status])
-            return True
+@scheduler.scheduled_job("interval", seconds=30, misfire_grace_time=30)
+async def cache_bot_to_redis():
+    now_time = datetime.now().astimezone()
+    bots_status = await asyncio.gather(
+        *(cache_bot_status(bot, now_time) for bot in get_bots().values()),
+    )
+    async with use_redis_client() as client:
+        await client.delete(f'picstatus_bot:{config.port}')
+        await client.lpush(f'picstatus_bot:{config.port}', 
+                           *[json.dumps(b) for b in bots_status])
+        return True
 
 @normal_collector()
 async def bots():
@@ -132,7 +133,7 @@ async def bots():
         return {str(config.port): [await get_bot_status(current_bot.get(), datetime.now().astimezone())]}
     else:
         async with use_redis_client() as client:
-            port_keys = await client.keys('picstatus_bot*')
+            port_keys = sorted(await client.keys('picstatus_bot*'))
             port_bots_status: Dict[str, List[BotStatus]] = {}
             for port_key in port_keys:
                 bots_status_redis = await client.lrange(port_key, 0, -1)
