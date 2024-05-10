@@ -123,8 +123,8 @@ async def cache_bot_to_redis():
     )
     async with use_redis_client() as client:
         await client.delete(f'picstatus_bot:{config.port}')
-        await client.lpush(f'picstatus_bot:{config.port}', 
-                           *[json.dumps(b) for b in bots_status])
+        if len(bots_status):
+            await client.lpush(f'picstatus_bot:{config.port}', *[json.dumps(b) for b in bots_status])
         return True
 
 @normal_collector()
